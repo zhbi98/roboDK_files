@@ -67,15 +67,35 @@ def msg_info(robot_msg):
         
     problems = False
     # [msg_id][msg_str], Example [2026][j1, j2, j3, j4, j5, j6]
-    msg_id = int(robot_msg[1:5])
-    msg_str = robot_msg[7:-1]
+    
+    resp = robot_msg.find("ok")
+    _len = len(robot_msg)
+
+    if resp != -1:
+        if _len > 2:
+            if robot_msg.startswith('ok'):
+                # ok j1,j2,j3,j4,j5,j6
+                msg_id = robot_msg[0:2]
+                msg_str = robot_msg[3:]
+            else:
+                # Stopped ok, Started ok
+                msg_id = 'ok'
+                msg_str = 'Ready'
+        else:
+            # ok
+            msg_id = 'ok'
+            msg_str = 'Ready'
+    else:
+        # 64
+        msg_id = 'ok'
+        msg_str = 'unknown'
 
     # msg_id = 1000 to 1500 are error codes
-    if msg_id < 1500:
+    if msg_id != 'ok':
         problems = True            
     else:
         # Other error codes
-        error_codes = [3001, 3003]
+        error_codes = ['!ok', 'error']
         if msg_id in error_codes:
             problems = True
             
@@ -124,7 +144,7 @@ class MecaRobot:
     def Stop(self):
         global ROBOT_MOVING
         ROBOT_MOVING = False
-        return self.Run("ClearMotion", None, False, True)            
+        return self.Run("!STOP", None, False, True)            
     
     # Connect to robot
     def connect(self, _port="COM5", _bd=115200):
@@ -177,17 +197,17 @@ class MecaRobot:
         
         # send activate robot and read confirmation        
         # self.sock.settimeout(10)
-        print_message('Reset errors...')
+        # print_message('Reset errors...')
         import time
         time.sleep(pause_com)
-        self.Run('ResetError', sync=True, send_ready=False)
+        # self.Run('ResetError', sync=True, send_ready=False)
         print_message('Activating robot...')
         time.sleep(pause_com)
-        self.Run('ActivateRobot', sync=True, send_ready=False)
+        self.Run('!START', sync=True, send_ready=False)
         # self.sock.settimeout(30)  
-        print_message('Moving home...')
+        # print_message('Moving home...')
         time.sleep(pause_com)
-        self.Run('Home', sync=True, send_ready=False)
+        # self.Run('Home', sync=True, send_ready=False)
         # self.sock.settimeout(4)
         #self.Run('ClearMotion', sync=True, send_ready=False)#stop motion
         # RoboDK provides xyzwpr data for the TCP with respect to the robot reference frame for linear movements
@@ -196,13 +216,14 @@ class MecaRobot:
         time.sleep(pause_com)        
         # This may not be 100% needed
         # Important: sync must be set to false
-        self.Run('SetTRF', [0, 0, 0, 0, 0, 0], sync=False, send_ready=False)
+        # self.Run('SetTRF', [0, 0, 0, 0, 0, 0], sync=False, send_ready=False)
+        self.Run('&', [0, 0, 90, 0, 0, 0], sync=False, send_ready=False)
         # Important! It does not always return an answer! sync should be false        
         
-        print_message('Updating WRF...')
+        # print_message('Updating WRF...')
         time.sleep(pause_com)
         # Important: sync must be set to false
-        self.Run('SetWRF', [0, 0, 0, 0, 0, 0], sync=False, send_ready=False)
+        # self.Run('SetWRF', [0, 0, 0, 0, 0, 0], sync=False, send_ready=False)
         
         # Synchronization required!
         #time.sleep(0.25)
@@ -222,7 +243,7 @@ class MecaRobot:
     # Send a line to the robot through the communication port (TCP/IP)
     def send_str(self, msg):
         try:
-            sent = self.ser.write(bytes(msg+'\0','ascii'))
+            sent = self.ser.write(bytes(msg+'\n','ascii'))
             if sent == 0:
                 return False
             return True
@@ -297,11 +318,11 @@ class MecaRobot:
             return
         
         if isinstance(values, list):
-            str_send = cmd + '(' + (','.join(format(vi, ".6f") for vi in values)) + ')'
+            str_send = cmd + (','.join(format(vi, ".6f") for vi in values))
         elif values is None:
             str_send = cmd
         else:
-            str_send = cmd + '(' + str(values) + ')'
+            str_send = cmd + str(values)
 
         #---------- Send robot command -------
         # Notify RoboDK (debug only)
@@ -344,7 +365,7 @@ class MecaRobot:
             return False
         
         # Support for old and new versions
-        if msg_id == 2026 or msg_id == 2102:
+        if msg_id == 'ok' or msg_id == 'OK':
             # robot response after a GetJoints request
             # [2026][j1, j2, j3, j4, j5, j6]
             print_joints(msg_str.replace(',',' '))
@@ -641,14 +662,14 @@ def RunCommand(linecmd):
         ROBOT_MOVING = True
         
         # Execute a joint move. RoboDK provides j1,j2,...,j6,x,y,z,w,p,r
-        ROBOT.Run('MoveJoints', values[0:6])
+        ROBOT.Run('&', values[0:6])
 
     elif nvalues >= 12 and linecmd.startswith("MOVL"):
         # Activate the monitor feedback
         ROBOT_MOVING = True
         
         # Execute a linear move. RoboDK provides j1,j2,...,j6,x,y,z,w,p,r
-        ROBOT.Run('MoveLin', values[6:12])
+        ROBOT.Run('@', values[6:12])
         
     elif linecmd.startswith("CJNT"):
         # Retrieve the current position of the robot
@@ -656,7 +677,7 @@ def RunCommand(linecmd):
             print_joints(ROBOT_MONITOR_LAST_JOINTS)
             UpdateStatus(ROBOTCOM_READY)
         else:
-            ROBOT.Run('GetJoints', sync=True)    
+            ROBOT.Run('#GETJPOS', sync=True)    
 
     elif nvalues >= 1 and linecmd.startswith("SPEED"):
         # First value is linear speed in mm/s
