@@ -68,7 +68,7 @@ def msg_info(robot_msg):
     problems = False
     # [msg_id][msg_str], Example [2026][j1, j2, j3, j4, j5, j6]
     
-    resp = robot_msg.find("ok")
+    resp = robot_msg.find('ok')
     _len = len(robot_msg)
 
     if resp != -1:
@@ -79,23 +79,23 @@ def msg_info(robot_msg):
                 msg_str = robot_msg[3:]
             else:
                 # Stopped ok, Started ok
-                msg_id = 'ok'
+                msg_id = 'Ack'
                 msg_str = 'Ready'
         else:
             # ok
-            msg_id = 'ok'
-            msg_str = 'Ready'
+            msg_id = 'Ack'
+            msg_str = 'ok'
     else:
-        # 64
-        msg_id = 'ok'
+        # 16, 32, 64 ...
+        msg_id = 'Ack'
         msg_str = 'unknown'
 
     # msg_id = 1000 to 1500 are error codes
-    if msg_id != 'ok':
+    if msg_id == '!ok':
         problems = True            
     else:
         # Other error codes
-        error_codes = ['!ok', 'error']
+        error_codes = ['3001', '3003']
         if msg_id in error_codes:
             problems = True
             
